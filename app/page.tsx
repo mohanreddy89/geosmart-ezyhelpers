@@ -5,7 +5,14 @@ import dynamic from 'next/dynamic';
 import { supabase } from './lib/supabase';
 import { Locality, Apartment, TransitPOI } from './types';
 
-const Map = dynamic(() => import('./components/Map'), { ssr: false });
+const Map = dynamic(() => import('./components/Map'), { 
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full flex items-center justify-center bg-gray-100 text-gray-500 font-medium text-sm">
+      Loading Bangalore Map...
+    </div>
+  ),
+});
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -82,7 +89,7 @@ export default function Home() {
       });
       const json = await res.json();
 
-      const pois: TransitPOI[] = json.elements.slice(0, 30).map((el: any) => ({
+      const pois: TransitPOI[] = (json.elements || []).slice(0, 30).map((el: any) => ({
         id: el.id,
         type,
         name: el.tags?.name || `${type.toUpperCase()} Stop`,
