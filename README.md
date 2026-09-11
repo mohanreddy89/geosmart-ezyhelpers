@@ -1,3 +1,4 @@
+Markdown
 # 📍 Bangalore Locality & Transit Finder
 
 An interactive web application built with **Next.js**, **Tailwind CSS**, and **Supabase** that maps Bangalore's residential localities, apartments, and public transit network in real-time.
@@ -40,3 +41,38 @@ Clone the repository and install dependencies:
 git clone [https://github.com/mohanreddy89/geosmart-ezyhelpers.git]
 cd geosmart-ezyhelpers
 npm install
+
+### 3. Environment Setup
+Create a .env.local file in the root directory and configure your Supabase credentials:
+
+Code snippet
+NEXT_PUBLIC_SUPABASE_URL=[https://your-supabase-project.supabase.co](https://your-supabase-project.supabase.co)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+4. Run Development Server
+Run the development server:
+
+Bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+Open http://localhost:3000 in your browser to view the application.
+
+🚢 Deployment
+The easiest way to deploy this application is using the Vercel Platform:
+
+Push your code to GitHub.
+
+Import the project into Vercel.
+
+Set your NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables in Vercel project settings.
+
+Deploy!
+
+Check out the Next.js deployment documentation for more details.
+
+📝 License
+This project is open-source and available under the MIT License.
