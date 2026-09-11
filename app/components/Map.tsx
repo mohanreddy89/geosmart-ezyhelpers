@@ -57,6 +57,7 @@ export default function Map({
   useEffect(() => {
     setIsMounted(true);
 
+    // Fix default marker icon assets for Leaflet in Next.js
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -117,13 +118,12 @@ export default function Map({
 
       {localities.map((loc) => {
         const isAdjacent = adjacentLocalities.some((a) => a.id === loc.id);
-        const iconToUse = isAdjacent ? icons.orange : undefined;
 
         return (
           <Marker
             key={loc.id}
             position={[Number(loc.rep_lat), Number(loc.rep_lon)]}
-            icon={iconToUse}
+            {...(isAdjacent && icons.orange ? { icon: icons.orange } : {})}
             eventHandlers={{
               click: () => onSelectLocality(loc),
             }}
@@ -151,7 +151,7 @@ export default function Map({
             <Marker
               key={apt.id}
               position={[Number(apt.lat), Number(apt.lon)]}
-              icon={icons.green}
+              {...(icons.green ? { icon: icons.green } : {})}
             >
               <Popup>
                 <div className="p-1">
@@ -166,7 +166,7 @@ export default function Map({
         <Marker
           key={`${poi.type}-${poi.id}`}
           position={[Number(poi.lat), Number(poi.lon)]}
-          icon={icons.red}
+          {...(icons.red ? { icon: icons.red } : {})}
         >
           <Popup>
             <div className="p-1">
