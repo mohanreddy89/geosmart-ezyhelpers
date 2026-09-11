@@ -157,25 +157,25 @@ export default function Home() {
 
   return (
     <main className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden">
-      {/* Top Navigation Bar */}
-      <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2 max-w-lg">
-        <div className="relative bg-white rounded shadow border border-gray-300 w-64">
+      {/* Top Navigation Floating Container */}
+      <div className="absolute top-4 left-4 z-10 flex flex-col sm:flex-row flex-wrap gap-2 max-w-lg bg-white/90 backdrop-blur-md p-2 rounded-xl shadow-lg border border-gray-200">
+        <div className="relative w-64">
           <input
             type="text"
             placeholder="Search apartment..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 text-sm focus:outline-none rounded"
+            className="w-full px-3 py-2 text-sm focus:outline-none rounded-lg bg-gray-50 border border-gray-200 focus:bg-white transition-all"
           />
           {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 mt-1 rounded shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto z-20">
               {searchResults.map((apt) => (
                 <div
                   key={apt.id}
                   onClick={() => handleSelectApartment(apt)}
-                  className="p-2 text-xs hover:bg-blue-50 cursor-pointer border-b"
+                  className="p-2 text-xs hover:bg-blue-50 cursor-pointer border-b last:border-b-0 transition-colors"
                 >
-                  <span className="font-semibold block">{apt.name}</span>
+                  <span className="font-semibold block text-gray-800">{apt.name}</span>
                   <span className="text-gray-500">{apt.locality}</span>
                 </div>
               ))}
@@ -185,31 +185,35 @@ export default function Home() {
 
         <button
           onClick={handleReset}
-          className="bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-3 border border-gray-300 rounded shadow text-xs"
+          className="bg-gray-900 hover:bg-black text-white font-medium py-2 px-3 rounded-lg shadow-sm text-xs transition-all active:scale-95"
         >
           Reset / Home
         </button>
 
         {/* Transit Buttons */}
-        <div className="flex gap-1 bg-white p-1 rounded shadow border border-gray-300 text-xs">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs">
           {(['metro', 'bus', 'rail', 'auto'] as const).map((type) => (
             <button
               key={type}
               onClick={() => toggleTransitLayer(type)}
-              className={`px-2 py-1 rounded capitalize font-medium ${
+              className={`px-2.5 py-1 rounded-md capitalize font-medium transition-all ${
                 transitLayers[type]
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
               }`}
             >
               {type}
             </button>
           ))}
         </div>
-        {loadingTransit && <span className="text-xs bg-white p-1 rounded shadow">Loading...</span>}
+        {loadingTransit && (
+          <span className="text-xs text-blue-600 font-semibold self-center px-1 animate-pulse">
+            Loading...
+          </span>
+        )}
       </div>
 
-      {/* Map Component */}
+      {/* Map Component Container */}
       <div className="flex-1 h-full w-full">
         <Map
           localities={localities}
@@ -226,23 +230,32 @@ export default function Home() {
 
       {/* Right Side Panel */}
       {selectedLocality && (
-        <div className="w-full md:w-80 bg-white p-4 shadow-xl overflow-y-auto max-h-[40vh] md:max-h-full z-10 border-l">
-          <h2 className="text-xl font-bold text-gray-900">{selectedLocality.locality}</h2>
-          <p className="text-xs text-gray-500 mb-4">Pincode: {selectedLocality.pincode}</p>
+        <div className="w-full md:w-80 bg-white/95 backdrop-blur-md p-5 shadow-2xl overflow-y-auto max-h-[40vh] md:max-h-full z-10 border-t md:border-t-0 md:border-l border-gray-200 transition-all">
+          <div className="flex justify-between items-start mb-1">
+            <h2 className="text-xl font-bold text-gray-900 leading-tight">{selectedLocality.locality}</h2>
+            <button
+              onClick={handleReset}
+              className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 rounded"
+              title="Close Panel"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-5">Pincode: {selectedLocality.pincode}</p>
 
-          <div className="mb-4">
-            <h3 className="font-semibold text-xs text-gray-700 mb-2 uppercase tracking-wide">
+          <div className="mb-5">
+            <h3 className="font-semibold text-xs text-gray-500 mb-2.5 uppercase tracking-wider">
               Apartments ({filteredApartments.length})
             </h3>
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {filteredApartments.map((apt) => (
                 <li
                   key={apt.id}
                   onClick={() => setSelectedApartment(apt)}
-                  className={`text-xs p-2 rounded cursor-pointer ${
+                  className={`text-xs p-2.5 rounded-lg cursor-pointer transition-all ${
                     selectedApartment?.id === apt.id
-                      ? 'bg-blue-100 text-blue-800 font-bold'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                      ? 'bg-blue-50 border border-blue-200 text-blue-700 font-bold shadow-sm'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-transparent'
                   }`}
                 >
                   {apt.name}
@@ -252,15 +265,15 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="font-semibold text-xs text-gray-700 mb-2 uppercase tracking-wide">
+            <h3 className="font-semibold text-xs text-gray-500 mb-2.5 uppercase tracking-wider">
               Adjacent Localities (&le; 3.5 km)
             </h3>
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {adjacentLocalities.map((adj) => (
                 <li
                   key={adj.id}
                   onClick={() => handleSelectLocality(adj)}
-                  className="text-xs text-orange-600 font-medium bg-orange-50 p-2 rounded cursor-pointer hover:bg-orange-100"
+                  className="text-xs text-orange-700 font-medium bg-orange-50/80 border border-orange-200/60 p-2.5 rounded-lg cursor-pointer hover:bg-orange-100 transition-all"
                 >
                   {adj.locality} ({adj.pincode})
                 </li>

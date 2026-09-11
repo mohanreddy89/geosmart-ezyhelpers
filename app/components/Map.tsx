@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Locality, Apartment, TransitPOI } from '../types';
 
@@ -73,6 +73,7 @@ export default function Map({
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
         shadowSize: [41, 41],
+        shadowAnchor: [12, 41],
       }),
       green: new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -81,6 +82,7 @@ export default function Map({
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
         shadowSize: [41, 41],
+        shadowAnchor: [12, 41],
       }),
       red: new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -89,6 +91,7 @@ export default function Map({
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
         shadowSize: [41, 41],
+        shadowAnchor: [12, 41],
       }),
     });
   }, []);
@@ -110,10 +113,24 @@ export default function Map({
       <MapEventsHandler onZoomChange={onZoomChange} />
 
       {selectedLocality && (
-        <MapController
-          center={[Number(selectedLocality.rep_lat), Number(selectedLocality.rep_lon)]}
-          zoom={13}
-        />
+        <>
+          <MapController
+            center={[Number(selectedLocality.rep_lat), Number(selectedLocality.rep_lon)]}
+            zoom={13}
+          />
+          {/* 3.5 km Radius Visual Overlay */}
+          <Circle
+            center={[Number(selectedLocality.rep_lat), Number(selectedLocality.rep_lon)]}
+            radius={3500}
+            pathOptions={{
+              color: '#2563eb',
+              fillColor: '#3b82f6',
+              fillOpacity: 0.12,
+              weight: 1.5,
+              dashArray: '6, 6',
+            }}
+          />
+        </>
       )}
 
       {localities.map((loc) => {
