@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from './lib/supabase';
 import { Locality, Apartment, TransitPOI } from './types';
 
@@ -15,7 +16,7 @@ const Map = dynamic(() => import('./components/Map'), {
 });
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371;
+  const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -26,7 +27,10 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-export default function Home() {
+function MainContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [localities, setLocalities] = useState<Locality[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [transitPois, setTransitPois] = useState<TransitPOI[]>([]);
@@ -46,6 +50,7 @@ export default function Home() {
     auto: false,
   });
 
+  // Fetch base dataset
   useEffect(() => {
     async function fetchData() {
       try {
@@ -64,6 +69,36 @@ export default function Home() {
     fetchData();
   }, []);
 
+  // Sync URL params to State on initial load
+  useEffect(() => {
+    if (localities.length > 0) {
+      const locParam = searchParams.get('locality');
+      const aptParam = searchParams.get('apartment');
+
+      if (locParam) {
+        const foundLoc = localities.find(
+          (l) => l.locality.toLowerCase() === locParam.toLowerCase()
+        );
+        if (foundLoc) {
+          handleSelectLocality(foundLoc, false);
+          if (aptParam && apartments.length > 0) {
+            const foundApt = apartments.find(
+              (a) => a.name.toLowerCase() === aptParam.toLowerCase()
+            );
+            if (foundApt) setSelectedApartment(foundApt);
+          }
+        }
+      }
+    }
+  }, [localities, apartments]);
+
+  const updateURL = (localityName?: string, apartmentName?: string) => {
+    const params = new URLSearchParams();
+    if (localityName) params.set('locality', localityName);
+    if (apartmentName) params.set('apartment', apartmentName);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
   const toggleTransitLayer = async (type: 'metro' | 'bus' | 'rail' | 'auto') => {
     const newState = !transitLayers[type];
     setTransitLayers((prev) => ({ ...prev, [type]: newState }));
@@ -76,6 +111,7 @@ export default function Home() {
     setLoadingTransit(true);
 
     try {
+      // 1. Check local Supabase cache first
       const { data: cached } = await supabase.from('transit_pois').select('*').eq('type', type);
 
       if (cached && cached.length > 0) {
@@ -84,6 +120,7 @@ export default function Home() {
         return;
       }
 
+      // 2. Prepare Overpass Overpass QL Queries
       const queries: Record<string, string> = {
         metro: 'node["railway"="station"]["network"="Namma Metro"](12.7,77.2,13.35,77.9);',
         bus: 'node["highway"="bus_stop"]["operator"="BMTC"](12.85,77.5,13.1,77.75);',
@@ -91,13 +128,46 @@ export default function Home() {
         auto: 'node["amenity"="taxi"](12.7,77.2,13.35,77.9);',
       };
 
-      const res = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: `[out:json];${queries[type]}out body 25;`,
-      });
-      const json = await res.json();
+      const endpoints = [
+        'https://overpass-api.de/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter'
+      ];
 
-      const pois: TransitPOI[] = (json.elements || []).slice(0, 30).map((el: any) => ({
+      let json: any = null;
+
+      // Cycle through primary and fallback mirror endpoints
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `data=[out:json][timeout:15];${queries[type]}out body 25;`,
+          });
+
+          if (!res.ok) continue;
+
+          const text = await res.text();
+
+          // Ensure the response body is JSON and not XML/HTML error page
+          if (text.trim().startsWith('{')) {
+            json = JSON.parse(text);
+            if (json && json.elements) {
+              break; // Valid payload received
+            }
+          }
+        } catch (err) {
+          console.warn(`Fetch failed for ${endpoint}, attempting fallback...`);
+        }
+      }
+
+      if (!json || !json.elements) {
+        throw new Error('All Overpass API endpoints are unavailable or rate-limited.');
+      }
+
+      const pois: TransitPOI[] = json.elements.slice(0, 30).map((el: any) => ({
         id: el.id,
         type,
         name: el.tags?.name || `${type.toUpperCase()} Stop`,
@@ -112,13 +182,15 @@ export default function Home() {
       }
     } catch (e) {
       console.error('Transit fetching error:', e);
-      alert('Transit data temporarily unavailable');
+      // Revert button toggle on failure
+      setTransitLayers((prev) => ({ ...prev, [type]: false }));
+      alert('Transit service is temporarily rate-limited. Please try again in a few seconds.');
     } finally {
       setLoadingTransit(false);
     }
   };
 
-  const handleSelectLocality = (loc: Locality) => {
+  const handleSelectLocality = (loc: Locality, shouldUpdateURL = true) => {
     setSelectedLocality(loc);
     setSelectedApartment(null);
 
@@ -134,13 +206,20 @@ export default function Home() {
     );
     setAdjacentLocalities(adj);
     setFilteredApartments(apartments.filter((a) => a.locality === loc.locality));
+
+    if (shouldUpdateURL) {
+      updateURL(loc.locality);
+    }
   };
 
   const handleSelectApartment = (apt: Apartment) => {
     setSelectedApartment(apt);
     setSearchQuery('');
     const parentLoc = localities.find((l) => l.locality === apt.locality);
-    if (parentLoc) handleSelectLocality(parentLoc);
+    if (parentLoc) {
+      handleSelectLocality(parentLoc, false);
+      updateURL(parentLoc.locality, apt.name);
+    }
   };
 
   const handleReset = () => {
@@ -149,15 +228,34 @@ export default function Home() {
     setAdjacentLocalities([]);
     setFilteredApartments([]);
     setSearchQuery('');
+    router.replace('/', { scroll: false });
   };
 
   const searchResults = searchQuery
     ? apartments.filter((a) => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
+  // Distance calculator helper for selected target
+  const getNearbyTransit = () => {
+    const targetLat = selectedApartment ? Number(selectedApartment.lat) : Number(selectedLocality?.rep_lat);
+    const targetLon = selectedApartment ? Number(selectedApartment.lon) : Number(selectedLocality?.rep_lon);
+
+    if (!targetLat || !targetLon || transitPois.length === 0) return [];
+
+    return transitPois
+      .map((poi) => ({
+        ...poi,
+        distance: haversine(targetLat, targetLon, Number(poi.lat), Number(poi.lon)),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5);
+  };
+
+  const nearbyTransit = getNearbyTransit();
+
   return (
     <main className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden">
-      {/* Top Navigation Floating Container */}
+      {/* Top Controls Container */}
       <div className="absolute top-4 left-4 z-10 flex flex-col sm:flex-row flex-wrap gap-2 max-w-lg bg-white/90 backdrop-blur-md p-2 rounded-xl shadow-lg border border-gray-200">
         <div className="relative w-64">
           <input
@@ -190,7 +288,7 @@ export default function Home() {
           Reset / Home
         </button>
 
-        {/* Transit Buttons */}
+        {/* Transit Filter Buttons */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs">
           {(['metro', 'bus', 'rail', 'auto'] as const).map((type) => (
             <button
@@ -213,7 +311,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* Map Component Container */}
+      {/* Map Container */}
       <div className="flex-1 h-full w-full">
         <Map
           localities={localities}
@@ -241,7 +339,28 @@ export default function Home() {
               ✕
             </button>
           </div>
-          <p className="text-xs text-gray-500 mb-5">Pincode: {selectedLocality.pincode}</p>
+          <p className="text-xs text-gray-500 mb-4">Pincode: {selectedLocality.pincode}</p>
+
+          {/* Nearest Transit Matrix */}
+          {nearbyTransit.length > 0 && (
+            <div className="mb-5 bg-blue-50/70 border border-blue-100 p-3 rounded-lg">
+              <h3 className="font-semibold text-xs text-blue-900 mb-2 uppercase tracking-wider">
+                Nearest Transit (Live)
+              </h3>
+              <ul className="space-y-1">
+                {nearbyTransit.map((t) => (
+                  <li key={`${t.type}-${t.id}`} className="text-xs flex justify-between text-gray-700">
+                    <span className="truncate pr-2 font-medium">{t.name} ({t.type})</span>
+                    <span className="font-bold text-blue-700 whitespace-nowrap">
+                      {t.distance < 1
+                        ? `${Math.round(t.distance * 1000)} m`
+                        : `${t.distance.toFixed(1)} km`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="mb-5">
             <h3 className="font-semibold text-xs text-gray-500 mb-2.5 uppercase tracking-wider">
@@ -251,7 +370,7 @@ export default function Home() {
               {filteredApartments.map((apt) => (
                 <li
                   key={apt.id}
-                  onClick={() => setSelectedApartment(apt)}
+                  onClick={() => handleSelectApartment(apt)}
                   className={`text-xs p-2.5 rounded-lg cursor-pointer transition-all ${
                     selectedApartment?.id === apt.id
                       ? 'bg-blue-50 border border-blue-200 text-blue-700 font-bold shadow-sm'
@@ -283,5 +402,13 @@ export default function Home() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="p-4 text-xs">Loading page...</div>}>
+      <MainContent />
+    </Suspense>
   );
 }
