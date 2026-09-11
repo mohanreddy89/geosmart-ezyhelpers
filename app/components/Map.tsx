@@ -1,44 +1,62 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Locality, Apartment } from '../types';
+import { Locality, Apartment, TransitPOI } from '../types';
 
 // Fix Leaflet default marker icon issue in Next.js
-const defaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-// Highlighted Icon for Selected/Adjacent Localities
-const createCustomIcon = (color: string) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="background-color: ${color}; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.4);"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
-};
+// Custom markers for adjacent localities, apartments, and transit POIs
+const orangeIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
-const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
-const BANGALORE_BBOX: [[number, number], [number, number]] = [
-  [12.7, 77.2],
-  [13.35, 77.9],
-];
+const greenIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const redIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
 interface MapProps {
   localities: Locality[];
   apartments: Apartment[];
+  transitPois: TransitPOI[];
   selectedLocality: Locality | null;
+  selectedApartment: Apartment | null;
   adjacentLocalities: Locality[];
   onSelectLocality: (locality: Locality) => void;
+  onZoomChange: (zoom: number) => void;
+  currentZoom: number;
 }
 
-// Controller component to smoothly animate map views
+const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
+
+// Helper component to handle map movement when locality changes
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -47,15 +65,27 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
+// Helper component to listen to zoom level changes
+function MapEventsHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  useMapEvents({
+    zoomend: (e) => {
+      onZoomChange(e.target.getZoom());
+    },
+  });
+  return null;
+}
+
 export default function Map({
   localities,
   apartments,
+  transitPois,
   selectedLocality,
+  selectedApartment,
   adjacentLocalities,
   onSelectLocality,
+  onZoomChange,
+  currentZoom,
 }: MapProps) {
-  const adjacentNames = adjacentLocalities.map((l) => l.locality);
-
   return (
     <MapContainer
       center={BANGALORE_CENTER}
@@ -63,10 +93,12 @@ export default function Map({
       style={{ height: '100%', width: '100%' }}
       className="z-0"
     >
-        <TileLayer
+      <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      />
+
+      <MapEventsHandler onZoomChange={onZoomChange} />
 
       {selectedLocality && (
         <MapController
@@ -75,20 +107,19 @@ export default function Map({
         />
       )}
 
-      {/* Render Localities */}
+      {/* Primary Locality Markers */}
       {localities.map((loc) => {
-        const isSelected = selectedLocality?.locality === loc.locality;
-        const isAdjacent = adjacentNames.includes(loc.locality);
+        const isSelected = selectedLocality?.id === loc.id;
+        const isAdjacent = adjacentLocalities.some((a) => a.id === loc.id);
 
-        let icon = createCustomIcon('#1E3A5F'); // EH Blue (default)
-        if (isSelected) icon = createCustomIcon('#2563EB'); // Bright Blue
-        if (isAdjacent) icon = createCustomIcon('#EA580C'); // Orange Ring
+        let iconToUse = undefined;
+        if (isAdjacent) iconToUse = orangeIcon;
 
         return (
           <Marker
             key={loc.id}
             position={[Number(loc.rep_lat), Number(loc.rep_lon)]}
-            icon={icon}
+            icon={iconToUse}
             eventHandlers={{
               click: () => onSelectLocality(loc),
             }}
@@ -96,13 +127,55 @@ export default function Map({
             <Popup>
               <div className="p-1">
                 <h3 className="font-bold text-sm">{loc.locality}</h3>
-                <p className="text-xs text-gray-600">Pincode: {loc.pincode}</p>
-                <p className="text-xs text-gray-600">Apartments: {loc.apartment_count}</p>
+                {currentZoom >= 13 && (
+                  <p className="text-xs text-gray-600">Pincode: {loc.pincode}</p>
+                )}
+                <p className="text-xs mt-1">
+                  Apartments:{' '}
+                  {apartments.filter((a) => a.locality === loc.locality).length}
+                </p>
               </div>
             </Popup>
           </Marker>
         );
       })}
+
+      {/* Apartment Markers inside selected locality */}
+      {selectedLocality &&
+        apartments
+          .filter((a) => a.locality === selectedLocality.locality)
+          .map((apt) => (
+            <Marker
+              key={apt.id}
+              position={[Number(apt.lat), Number(apt.lon)]}
+              icon={greenIcon}
+            >
+              <Popup>
+                <div className="p-1">
+                  <h4 className="font-bold text-xs">{apt.name}</h4>
+                  <p className="text-xs text-gray-500">{apt.locality}</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+      {/* Transit POI Markers (Overpass API) */}
+      {transitPois.map((poi) => (
+        <Marker
+          key={`${poi.type}-${poi.id}`}
+          position={[Number(poi.lat), Number(poi.lon)]}
+          icon={redIcon}
+        >
+          <Popup>
+            <div className="p-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-red-600 block">
+                {poi.type} Stop
+              </span>
+              <h4 className="font-bold text-xs">{poi.name}</h4>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
     </MapContainer>
   );
 }
