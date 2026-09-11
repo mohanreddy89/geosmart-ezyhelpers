@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-// import 'leaflet/dist/leaflet.css';
 import { Locality, Apartment, TransitPOI } from '../types';
 
 interface MapProps {
@@ -48,6 +47,7 @@ export default function Map({
   onZoomChange,
   currentZoom,
 }: MapProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const [icons, setIcons] = useState<{
     orange?: L.Icon;
     green?: L.Icon;
@@ -55,7 +55,8 @@ export default function Map({
   }>({});
 
   useEffect(() => {
-    // Fix default marker icon inside client lifecycle
+    setIsMounted(true);
+
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -91,6 +92,8 @@ export default function Map({
     });
   }, []);
 
+  if (!isMounted) return null;
+
   return (
     <MapContainer
       center={BANGALORE_CENTER}
@@ -112,7 +115,6 @@ export default function Map({
         />
       )}
 
-      {/* Primary Locality Markers */}
       {localities.map((loc) => {
         const isAdjacent = adjacentLocalities.some((a) => a.id === loc.id);
         const iconToUse = isAdjacent ? icons.orange : undefined;
@@ -142,7 +144,6 @@ export default function Map({
         );
       })}
 
-      {/* Apartment Markers inside selected locality */}
       {selectedLocality &&
         apartments
           .filter((a) => a.locality === selectedLocality.locality)
@@ -161,7 +162,6 @@ export default function Map({
             </Marker>
           ))}
 
-      {/* Transit POI Markers */}
       {transitPois.map((poi) => (
         <Marker
           key={`${poi.type}-${poi.id}`}

@@ -48,10 +48,18 @@ export default function Home() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: locData } = await supabase.from('localities').select('*');
-      const { data: aptData } = await supabase.from('apartments').select('*');
-      if (locData) setLocalities(locData);
-      if (aptData) setApartments(aptData);
+      try {
+        const { data: locData, error: locError } = await supabase.from('localities').select('*');
+        const { data: aptData, error: aptError } = await supabase.from('apartments').select('*');
+        
+        if (locError) console.error('Error fetching localities:', locError);
+        if (aptError) console.error('Error fetching apartments:', aptError);
+
+        if (locData) setLocalities(locData);
+        if (aptData) setApartments(aptData);
+      } catch (err) {
+        console.error('Failed to communicate with database:', err);
+      }
     }
     fetchData();
   }, []);
@@ -67,22 +75,22 @@ export default function Home() {
 
     setLoadingTransit(true);
 
-    const { data: cached } = await supabase.from('transit_pois').select('*').eq('type', type);
-
-    if (cached && cached.length > 0) {
-      setTransitPois((prev) => [...prev, ...cached]);
-      setLoadingTransit(false);
-      return;
-    }
-
-    const queries: Record<string, string> = {
-      metro: 'node["railway"="station"]["network"="Namma Metro"](12.7,77.2,13.35,77.9);',
-      bus: 'node["highway"="bus_stop"]["operator"="BMTC"](12.85,77.5,13.1,77.75);',
-      rail: 'node["railway"="station"][!"subway"](12.7,77.2,13.35,77.9);',
-      auto: 'node["amenity"="taxi"](12.7,77.2,13.35,77.9);',
-    };
-
     try {
+      const { data: cached } = await supabase.from('transit_pois').select('*').eq('type', type);
+
+      if (cached && cached.length > 0) {
+        setTransitPois((prev) => [...prev, ...cached]);
+        setLoadingTransit(false);
+        return;
+      }
+
+      const queries: Record<string, string> = {
+        metro: 'node["railway"="station"]["network"="Namma Metro"](12.7,77.2,13.35,77.9);',
+        bus: 'node["highway"="bus_stop"]["operator"="BMTC"](12.85,77.5,13.1,77.75);',
+        rail: 'node["railway"="station"][!"subway"](12.7,77.2,13.35,77.9);',
+        auto: 'node["amenity"="taxi"](12.7,77.2,13.35,77.9);',
+      };
+
       const res = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: `[out:json];${queries[type]}out body 25;`,
@@ -103,6 +111,7 @@ export default function Home() {
         await supabase.from('transit_pois').insert(pois);
       }
     } catch (e) {
+      console.error('Transit fetching error:', e);
       alert('Transit data temporarily unavailable');
     } finally {
       setLoadingTransit(false);
