@@ -6,42 +6,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Locality, Apartment, TransitPOI } from '../types';
 
-// Fix Leaflet default marker icon issue in Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
-
-// Custom markers for adjacent localities, apartments, and transit POIs
-const orangeIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
 interface MapProps {
   localities: Locality[];
   apartments: Apartment[];
@@ -56,7 +20,6 @@ interface MapProps {
 
 const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946];
 
-// Helper component to handle map movement when locality changes
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -65,7 +28,6 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-// Helper component to listen to zoom level changes
 function MapEventsHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
   useMapEvents({
     zoomend: (e) => {
@@ -86,6 +48,49 @@ export default function Map({
   onZoomChange,
   currentZoom,
 }: MapProps) {
+  const [icons, setIcons] = useState<{
+    orange?: L.Icon;
+    green?: L.Icon;
+    red?: L.Icon;
+  }>({});
+
+  useEffect(() => {
+    // Fix default marker icon inside client lifecycle
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+    });
+
+    setIcons({
+      orange: new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      }),
+      green: new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      }),
+      red: new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      }),
+    });
+  }, []);
+
   return (
     <MapContainer
       center={BANGALORE_CENTER}
@@ -109,11 +114,8 @@ export default function Map({
 
       {/* Primary Locality Markers */}
       {localities.map((loc) => {
-        const isSelected = selectedLocality?.id === loc.id;
         const isAdjacent = adjacentLocalities.some((a) => a.id === loc.id);
-
-        let iconToUse = undefined;
-        if (isAdjacent) iconToUse = orangeIcon;
+        const iconToUse = isAdjacent ? icons.orange : undefined;
 
         return (
           <Marker
@@ -148,7 +150,7 @@ export default function Map({
             <Marker
               key={apt.id}
               position={[Number(apt.lat), Number(apt.lon)]}
-              icon={greenIcon}
+              icon={icons.green}
             >
               <Popup>
                 <div className="p-1">
@@ -159,12 +161,12 @@ export default function Map({
             </Marker>
           ))}
 
-      {/* Transit POI Markers (Overpass API) */}
+      {/* Transit POI Markers */}
       {transitPois.map((poi) => (
         <Marker
           key={`${poi.type}-${poi.id}`}
           position={[Number(poi.lat), Number(poi.lon)]}
-          icon={redIcon}
+          icon={icons.red}
         >
           <Popup>
             <div className="p-1">
